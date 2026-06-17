@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
-from urllib.parse import quote, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
 
 from resource_request_graph import ResourceRequestSkill, ResourceRequestState, normalize_action
@@ -32,6 +32,7 @@ MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-005")
 MAX_ITERATIONS = int(os.environ.get("MAX_ITERATIONS", "5"))
 LOG_NAME = "s3c-copilot-agent"
+DEMO_PASSWORD = os.environ.get("DEMO_PASSWORD", "")
 
 MOCK_USERS = {
     "healthcare-developer": {
@@ -75,6 +76,7 @@ RESOURCE_SESSIONS: dict[str, ResourceRequestState] = {}
 RESOURCE_SKILL: ResourceRequestSkill | None = None
 CHAT_JOBS: dict[str, dict[str, Any]] = {}
 RESOURCE_JOBS: dict[str, dict[str, Any]] = {}
+AUTH_SESSIONS: dict[str, int] = {}
 
 
 @dataclass(frozen=True)
@@ -246,12 +248,18 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "SuperCoolCopilot/2.0"
 
     def do_GET(self) -> None:
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/":
-            self.send_html(INDEX_HTML)
+            self.send_html(INDEX_HTML if self.is_authenticated() else login_html(bool(parse_qs(parsed.query).get("error"))))
         elif path == "/supercoollogo.png":
             self.send_png("supercoollogo.png")
+        elif path == "/logout":
+            self.expire_auth_cookie()
         elif path.startswith("/api/resource-request/jobs/"):
+            if not self.is_authenticated():
+                self.send_json({"error": "authentication required"}, HTTPStatus.UNAUTHORIZED)
+                return
             job_id = path.rsplit("/", 1)[-1]
             job = RESOURCE_JOBS.get(job_id)
             if not job:
@@ -259,6 +267,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.send_json(job)
         elif path.startswith("/api/chat/jobs/"):
+            if not self.is_authenticated():
+                self.send_json({"error": "authentication required"}, HTTPStatus.UNAUTHORIZED)
+                return
             job_id = path.rsplit("/", 1)[-1]
             job = CHAT_JOBS.get(job_id)
             if not job:
@@ -284,6 +295,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         started = time.time()
         path = urlparse(self.path).path
+        if path == "/login":
+            self.handle_login()
+            return
+        if not self.is_authenticated():
+            self.send_json({"error": "authentication required"}, HTTPStatus.UNAUTHORIZED)
+            return
         payload = self.read_json()
         try:
             if path == "/api/chat":
@@ -311,6 +328,10 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("content-length", "0"))
         return json.loads(self.rfile.read(length)) if length else {}
 
+    def read_form(self) -> dict[str, list[str]]:
+        length = int(self.headers.get("content-length", "0"))
+        return parse_qs(self.rfile.read(length).decode()) if length else {}
+
     def send_json(self, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload, indent=2).encode()
         self.send_response(status)
@@ -326,6 +347,49 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("content-length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
+
+    def redirect(self, location: str) -> None:
+        self.send_response(HTTPStatus.FOUND)
+        self.send_header("location", location)
+        self.end_headers()
+
+    def handle_login(self) -> None:
+        password = self.read_form().get("password", [""])[0]
+        if not DEMO_PASSWORD or password != DEMO_PASSWORD:
+            self.redirect("/?error=1")
+            return
+        token = uuid.uuid4().hex
+        AUTH_SESSIONS[token] = int(time.time()) + 4 * 60 * 60
+        self.send_response(HTTPStatus.FOUND)
+        self.send_header("location", "/")
+        self.send_header("set-cookie", f"s3c_auth={token}; Path=/; Max-Age=14400; HttpOnly; SameSite=Lax")
+        self.end_headers()
+
+    def expire_auth_cookie(self) -> None:
+        token = self.auth_token()
+        if token:
+            AUTH_SESSIONS.pop(token, None)
+        self.send_response(HTTPStatus.FOUND)
+        self.send_header("location", "/")
+        self.send_header("set-cookie", "s3c_auth=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax")
+        self.end_headers()
+
+    def auth_token(self) -> str:
+        cookie = self.headers.get("cookie", "")
+        for part in cookie.split(";"):
+            key, _, value = part.strip().partition("=")
+            if key == "s3c_auth":
+                return value
+        return ""
+
+    def is_authenticated(self) -> bool:
+        token = self.auth_token()
+        expires = AUTH_SESSIONS.get(token, 0)
+        if expires > int(time.time()):
+            return True
+        if token:
+            AUTH_SESSIONS.pop(token, None)
+        return False
 
     def send_png(self, path: str) -> None:
         with open(path, "rb") as image:
@@ -1588,6 +1652,44 @@ def logs_query(request_id: str) -> str:
 
 def elapsed_ms(started: float) -> int:
     return int((time.time() - started) * 1000)
+
+
+def login_html(show_error: bool) -> str:
+    error = '<div class="error">Incorrect password. Try again.</div>' if show_error else ""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Super Cool Copilot Login</title>
+  <style>
+    :root{{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#071f3d;background:#f8fafc;--navy:#06274a;--teal:#00a9b7;--orange:#ff6a00}}
+    *{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#f8fafc,#e9fbfd)}}
+    .card{{width:min(420px,calc(100vw - 32px));background:#fff;border:1px solid #dbeff2;border-radius:12px;padding:28px;box-shadow:0 18px 45px rgba(6,39,74,.12);display:grid;gap:18px}}
+    .logo-wrap{{background:#fff;border-radius:10px;display:grid;place-items:center}}.logo{{max-width:220px;max-height:120px;object-fit:contain}}
+    h1{{font-size:24px;margin:0;color:var(--navy)}}p{{margin:0;color:#557083;line-height:1.5}}
+    form{{display:grid;gap:12px}}label{{display:grid;gap:6px;font-size:13px;font-weight:700;color:#374151}}input{{border:1px solid #d1d5db;border-radius:10px;padding:12px;font:inherit}}
+    button{{border:0;border-radius:10px;background:var(--teal);color:#fff;padding:12px 16px;cursor:pointer;font-weight:800;font:inherit}}
+    .error{{border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:10px;padding:10px;font-size:14px}}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="logo-wrap"><img class="logo" src="/supercoollogo.png" alt="Super Cool Consulting Company logo"></div>
+    <div>
+      <h1>Super Cool Copilot</h1>
+      <p>Enter the demo password to continue.</p>
+    </div>
+    {error}
+    <form method="post" action="/login">
+      <label>Password
+        <input name="password" type="password" autocomplete="current-password" autofocus>
+      </label>
+      <button type="submit">Log in</button>
+    </form>
+  </main>
+</body>
+</html>"""
 
 
 INDEX_HTML = r"""<!doctype html>

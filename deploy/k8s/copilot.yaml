@@ -34,6 +34,11 @@ spec:
               value: text-embedding-005
             - name: MAX_ITERATIONS
               value: "5"
+            - name: DEMO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: s3c-copilot-auth
+                  key: password
           resources:
             requests:
               cpu: 250m
