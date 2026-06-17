@@ -1,0 +1,26 @@
+{
+  "request_id": "rr-1042",
+  "submitted_by": "developer@s3c.example",
+  "client_id": "healthcare-client-a",
+  "application": "Patient Analytics",
+  "environment": "production",
+  "resource_category": "data_store",
+  "free_text": "I need a new data store for the Patient Analytics app. This is for production and will be used by a healthcare client. The app needs to store reporting data and should only be available to the backend service.",
+  "provided_fields": {
+    "application": "Patient Analytics",
+    "environment": "production",
+    "client_type": "healthcare",
+    "resource_category": "data_store",
+    "access_pattern": "backend_service_only"
+  },
+  "missing_fields": [
+    "data_classification",
+    "regulated_data_confirmation",
+    "availability_slo",
+    "backup_retention",
+    "region",
+    "owner",
+    "cost_center",
+    "preferred_engine"
+  ]
+}

@@ -1,0 +1,38 @@
+# Regulated Production Data-Store Pattern
+# Use for Confidential or Regulated data (PHI, PCI, financial records) in production.
+# Referenced by: approved-resource-patterns.md clause 2
+pattern: regulated-production-data-store
+classification: regulated
+environment: production
+engine: managed-relational            # confirm approved engine per engagement
+encryption:
+  at_rest:
+    enabled: true
+    key_type: cmek                    # customer-managed encryption keys required
+  in_transit:
+    enabled: true
+    tls: required
+networking:
+  exposure: private                   # no public endpoint
+  access:
+    type: backend-only
+    allowed_identities:               # named service accounts only
+      - <backend-service-account>
+availability:
+  high_availability: true
+  multi_zone: true
+  recovery_time_objective: <define>   # required field
+backup:
+  point_in_time_recovery: true
+  retention_days: 35                  # minimum; engagement may require more
+region: <contractually-agreed-region> # required; residency-controlled
+tags:
+  owner: <required>
+  cost-center: <required>
+  environment: production
+  client-id: <required>
+  data-classification: regulated
+review:
+  architecture_review: required
+  security_approval: required
+  human_approval_required: true

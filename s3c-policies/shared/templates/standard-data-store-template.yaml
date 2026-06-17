@@ -1,0 +1,34 @@
+# Standard Data Store Pattern
+# Use for non-regulated application data.
+# Referenced by: approved-resource-patterns.md clause 1
+pattern: standard-data-store
+classification: internal              # not for Confidential/Regulated data
+environment: <development|test|staging|production>
+engine: managed-relational
+encryption:
+  at_rest:
+    enabled: true
+    key_type: provider-managed        # CMEK only required for Confidential/Regulated
+  in_transit:
+    enabled: true
+    tls: required
+networking:
+  exposure: private
+  access:
+    type: backend-only
+availability:
+  high_availability: false            # acceptable for non-production
+  multi_zone: false
+backup:
+  point_in_time_recovery: false
+  retention_days: 7                   # minimum
+region: <region>
+tags:
+  owner: <required>
+  cost-center: <required>
+  environment: <required>
+  client-id: <required>
+  data-classification: internal
+review:
+  architecture_review: not-required   # unless deviating from pattern
+  human_approval_required: false

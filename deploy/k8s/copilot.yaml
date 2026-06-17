@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3c-copilot
+  namespace: s3c-demo
+  labels:
+    app: s3c-copilot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: s3c-copilot
+  template:
+    metadata:
+      labels:
+        app: s3c-copilot
+    spec:
+      serviceAccountName: orchestrator-ksa
+      containers:
+        - name: copilot
+          image: us-central1-docker.pkg.dev/s3c-agent/s3c-demo/s3c-copilot:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PROJECT_ID
+              value: s3c-agent
+            - name: REGION
+              value: us-central1
+            - name: POLICY_BUCKET
+              value: s3c-agent-policy
+            - name: GEMINI_MODEL
+              value: gemini-2.5-flash
+            - name: EMBEDDING_MODEL
+              value: text-embedding-005
+            - name: MAX_ITERATIONS
+              value: "5"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: s3c-copilot
+  namespace: s3c-demo
+spec:
+  type: LoadBalancer
+  selector:
+    app: s3c-copilot
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

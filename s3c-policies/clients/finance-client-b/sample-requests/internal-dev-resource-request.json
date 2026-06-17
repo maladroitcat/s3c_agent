@@ -1,0 +1,21 @@
+{
+  "request_id": "rr-1043",
+  "submitted_by": "developer2@s3c.example",
+  "client_id": "finance-client-b",
+  "application": "Internal Reconciliation Tool",
+  "environment": "development",
+  "resource_category": "data_store",
+  "free_text": "Need a small dev database for the internal reconciliation tool. Just for development, no real customer data, synthetic transactions only.",
+  "provided_fields": {
+    "application": "Internal Reconciliation Tool",
+    "environment": "development",
+    "client_type": "financial_services",
+    "resource_category": "data_store",
+    "data_note": "synthetic_data_only"
+  },
+  "missing_fields": [
+    "owner",
+    "cost_center",
+    "preferred_engine"
+  ]
+}

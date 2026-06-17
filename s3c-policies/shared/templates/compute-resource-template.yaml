@@ -1,0 +1,24 @@
+# Compute Resource Pattern
+# Use for containerized workloads on the managed Kubernetes platform.
+# Referenced by: approved-resource-patterns.md clause 4
+pattern: compute-resource
+runtime: managed-kubernetes
+identity:
+  workload_identity: required         # no static service-account keys
+  service_account_scope: least-privilege
+resources:
+  requests: <define>
+  limits: <define>
+  autoscaling: <required-for-production>
+networking:
+  exposure: <private|internet-reachable>  # internet-reachable requires approval
+encryption:
+  in_transit: required
+tags:
+  owner: <required>
+  cost-center: <required>
+  environment: <required>
+  client-id: <required>
+  data-classification: <required>
+review:
+  architecture_review: required-if-internet-reachable

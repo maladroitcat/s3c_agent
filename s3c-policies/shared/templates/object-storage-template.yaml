@@ -1,0 +1,22 @@
+# Object Storage Pattern
+# Use for files, exports, unstructured artifacts.
+# Referenced by: approved-resource-patterns.md clause 3
+pattern: object-storage
+classification: <internal|confidential|regulated>
+access_control: uniform-bucket-level  # no per-object ACLs
+public_access_prevention: enabled
+encryption:
+  at_rest:
+    enabled: true
+    key_type: cmek-if-confidential-or-regulated
+lifecycle:
+  retention_rule: <define-per-data-class>
+  deletion_rule: <define-per-data-class>
+networking:
+  exposure: private
+tags:
+  owner: <required>
+  cost-center: <required>
+  environment: <required>
+  client-id: <required>
+  data-classification: <required>
